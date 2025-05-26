@@ -1,13 +1,5 @@
-#include <dpp/dpp.h>
-#include <fmt/format.h>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
-#include <nlohmann/json.hpp>
-#include <spdlog/async.h>
-#include <spdlog/sinks/rotating_file_sink.h>
-#include <spdlog/sinks/stdout_color_sinks.h>
-#include <spdlog/spdlog.h>
+#include <rabbit/commands.hxx>
+#include <rabbit/core.hxx>
 
 using json = nlohmann::json;
 
@@ -78,5 +70,27 @@ int main() {
       break;
     }
   });
+  dpp::snowflake dev_guild_id =
+      static_cast<dpp::snowflake>(config["Slash_Guilds"].get<uint64_t>());
+
+  bot.on_ready([&](const dpp::ready_t &event) {
+    log->info("Bot is ready.");
+    log->info("Bot user: {}.", bot.me.username);
+    log->info("Is dev mode? (0 is production): {}.", dev_guild_id);
+    if (dpp::run_once<struct register_commands>()) {
+      for (auto &[_, cmd] : CommandRegistry::instance().get_all()) {
+        cmd->register_slash(bot, dev_guild_id);
+      }
+    }
+  });
+
+  bot.on_slashcommand([&](const dpp::slashcommand_t &event) {
+    auto &cmds = CommandRegistry::instance().get_all();
+    auto it = cmds.find(event.command.get_command_name());
+    if (it != cmds.end()) {
+      it->second->execute(event);
+    }
+  });
+
   bot.start(dpp::st_wait);
 }
